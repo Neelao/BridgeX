@@ -5,7 +5,7 @@ import { renderDashboard } from "./features/dashboard/dashboard.js";
 import { renderDocuments } from "./features/documents/documents.js";
 import { renderIntentPicker } from "./features/intent/intent.js";
 import { buildInterviewQuestions } from "./features/interview/interview.js";
-import { renderNetworkFeed } from "./features/network/network.js";
+import { renderNetworkFeed } from "./features/feed/feed.js";
 import { partnershipAreas } from "./features/partnership/areas.js";
 import { renderLanding } from "./features/public/landing.js";
 import { renderRequirements } from "./features/requirements/requirements.js";
@@ -20,9 +20,10 @@ let activeUserId = state.users[0].id;
 let modal = "";
 let entryRole = "recruiter";
 let verificationResult = null;
+let expandedComments = new Set();
 
 const routes = [
-  ["feed", "Network"],
+  ["feed", "Feed"],
   ["dashboard", "Dashboard"],
   ["requirements", "Post Requirement"],
   ["apply", "Apply"],
@@ -62,12 +63,12 @@ function renderMain() {
   if (route === "access") return renderAccessPage(entryRole, verificationResult);
   if (route === "review") return renderReviewPage(currentUser());
   if (route === "intent") return renderIntentPicker(entryRole, partnershipAreas);
-  if (route === "feed") return renderNetworkFeed(state, currentUser(), partnershipAreas);
+  if (route === "feed") return renderNetworkFeed(state, currentUser(), partnershipAreas, expandedComments);
   if (route === "requirements") return renderRequirements(state);
   if (route === "apply") return renderCandidateApply(state);
   if (route === "documents") return renderDocuments(state);
   if (route === "auth") return renderAuth(state, activeUserId);
-  return renderDashboard(state);
+  return renderDashboard(state, currentUser());
 }
 
 function appShell() {
@@ -288,7 +289,103 @@ function schedule(appId) {
   render();
 }
 
+function showApplyModal(oppId) {
+  const opp = state.opportunities.find((o) => o.id === oppId);
+  if (!opp) return;
+  const user = currentUser();
+  modal = html`
+    <div class="modal-backdrop" data-action="close-modal">
+      <section class="modal apply-modal">
+        <div class="topbar">
+          <div>
+            <h2>Apply to partnership</h2>
+            <p>${escapeHTML(opp.title)}</p>
+          </div>
+          <button class="ghost" data-action="close-modal">Close</button>
+        </div>
+        <div class="apply-requirements">
+          <div class="req-group">
+            <span class="req-label must">Must-haves</span>
+            <div class="post-tags">
+              ${(opp.mustHaves || "").split(",").map((t) => `<span>${escapeHTML(t.trim())}</span>`).join("")}
+            </div>
+          </div>
+          ${opp.niceToHaves ? html`
+            <div class="req-group">
+              <span class="req-label nice">Nice-to-haves</span>
+              <div class="post-tags nice">
+                ${(opp.niceToHaves || "").split(",").map((t) => `<span>${escapeHTML(t.trim())}</span>`).join("")}
+              </div>
+            </div>
+          ` : ""}
+        </div>
+        <form id="apply-modal-form" data-opp="${oppId}" class="form">
+          <div class="grid cols-2">
+            <div class="field">
+              <label>Full Name</label>
+              <input name="name" value="${escapeHTML(user.name || "")}" required />
+            </div>
+            <div class="field">
+              <label>Company</label>
+              <input name="company" value="${escapeHTML(user.company || "")}" required />
+            </div>
+          </div>
+          <div class="grid cols-2">
+            <div class="field">
+              <label>Company Email</label>
+              <input name="email" type="email" value="${escapeHTML(user.email || "")}" required />
+            </div>
+            <div class="field">
+              <label>Your Role</label>
+              <input name="role" placeholder="Founder / Partnership Lead" required />
+            </div>
+          </div>
+          <div class="field">
+            <label>Why are you a great fit for this partnership?</label>
+            <textarea name="whyApply" placeholder="Describe how your company addresses the must-haves, relevant experience, and the value you bring to this collaboration…" required></textarea>
+          </div>
+          <div class="field">
+            <label>Resume / CV / Pitch Deck</label>
+            <input name="resume" type="file" accept=".pdf,.doc,.docx,.txt,.pptx" />
+          </div>
+          <button class="primary" type="submit" style="width:100%">Submit Application</button>
+        </form>
+      </section>
+    </div>
+  `;
+  render();
+}
+
 document.addEventListener("click", async (event) => {
+  const stepLabel = event.target.closest("label.step-button");
+  if (stepLabel?.getAttribute("for") === "portal-step-4") {
+    const form = document.getElementById("entry-access-form");
+    if (form) {
+      const data = formData(form);
+      verificationResult = verifyAccess(data);
+      const user = currentUser();
+      user.name = data.name;
+      user.company = data.company;
+      user.email = data.email;
+      user.verified = true;
+      user.verification = {
+        hrEmail: data.hrEmail,
+        authorizedBy: data.authorizedBy,
+        businessCode: verificationResult.registration,
+        linkedIn: verificationResult.linkedIn,
+        letterName: verificationResult.letterName,
+        signed: Boolean(data.signed),
+        score: verificationResult.score,
+        status: "verified",
+        checkedAt: new Date().toISOString()
+      };
+      saveState(state);
+      route = "feed";
+      render();
+      return;
+    }
+  }
+
   const target = event.target.closest("button, .modal-backdrop");
   if (!target) return;
 
@@ -298,7 +395,7 @@ document.addEventListener("click", async (event) => {
     render();
   }
 
-  if (target.dataset.action === "close-modal" && (target.classList.contains("modal-backdrop") || target.tagName === "BUTTON")) {
+  if (target.dataset.action === "close-modal" && (event.target === target || target.tagName === "BUTTON")) {
     modal = "";
     render();
   }
@@ -378,16 +475,15 @@ document.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "continue-after-approval") {
-    route = "intent";
+    route = "feed";
     render();
   }
 
   if (target.dataset.action === "choose-area") {
     const user = currentUser();
     user.preference = target.dataset.area;
-    route = "feed";
     saveState(state);
-    route = "review";
+    route = "feed";
     render();
   }
 
@@ -395,6 +491,39 @@ document.addEventListener("click", async (event) => {
     state.applications.forEach(analyze);
     saveState(state);
     render();
+  }
+
+  if (target.dataset.action === "like-post") {
+    const opp = state.opportunities.find((o) => o.id === target.dataset.opp);
+    if (!opp) return;
+    if (!opp.likes) opp.likes = [];
+    const idx = opp.likes.indexOf(activeUserId);
+    if (idx === -1) opp.likes.push(activeUserId);
+    else opp.likes.splice(idx, 1);
+    saveState(state);
+    render();
+  }
+
+  if (target.dataset.action === "toggle-comments") {
+    const oppId = target.dataset.opp;
+    if (expandedComments.has(oppId)) expandedComments.delete(oppId);
+    else expandedComments.add(oppId);
+    render();
+  }
+
+  if (target.dataset.action === "apply-post") {
+    showApplyModal(target.dataset.opp);
+  }
+
+  if (target.dataset.action === "invite-interview") {
+    const appId = target.dataset.app;
+    const app = state.applications.find((a) => a.id === appId);
+    if (app) {
+      app.status = "interview-invited";
+      app.invitedToInterview = true;
+      saveState(state);
+    }
+    startInterview(appId);
   }
 
   if (target.dataset.action === "view-candidate") showCandidate(target.dataset.app);
@@ -432,6 +561,75 @@ document.addEventListener("click", async (event) => {
 document.addEventListener("submit", (event) => {
   event.preventDefault();
   const form = event.target;
+
+  if (form.dataset.action === "add-comment") {
+    const data = formData(form);
+    if (!data.comment?.trim()) return;
+    const opp = state.opportunities.find((o) => o.id === form.dataset.opp);
+    if (!opp) return;
+    if (!opp.comments) opp.comments = [];
+    const user = currentUser();
+    opp.comments.push({
+      id: uid("cmt"),
+      userId: activeUserId,
+      userName: user.name,
+      company: user.company,
+      text: data.comment.trim(),
+      createdAt: new Date().toISOString().slice(0, 10)
+    });
+    saveState(state);
+    render();
+    return;
+  }
+
+  if (form.id === "apply-modal-form") {
+    const data = formData(form);
+    const oppId = form.dataset.opp;
+    const opp = state.opportunities.find((o) => o.id === oppId);
+    const resumeFile = data.resume;
+    const hasResume = resumeFile && typeof resumeFile === "object" && resumeFile.name && resumeFile.size > 0;
+    const candidate = {
+      id: uid("cand"),
+      userId: activeUserId,
+      name: data.name,
+      company: data.company,
+      email: data.email,
+      role: data.role,
+      bio: (data.whyApply || "").slice(0, 150)
+    };
+    const app = {
+      id: uid("app"),
+      opportunityId: oppId,
+      candidateId: candidate.id,
+      status: "submitted",
+      proposalText: data.whyApply,
+      whyApply: data.whyApply,
+      resume: hasResume ? { name: resumeFile.name, kind: "Resume/CV" } : null,
+      documents: hasResume ? [{ name: resumeFile.name, kind: "Resume/CV" }] : [],
+      analysis: null,
+      interview: null,
+      meeting: null,
+      invitedToInterview: false
+    };
+    state.candidates.push(candidate);
+    analyze(app);
+    state.applications.push(app);
+    saveState(state);
+    modal = html`
+      <div class="modal-backdrop" data-action="close-modal">
+        <section class="modal" style="max-width:440px;text-align:center">
+          <div class="approved-state" style="min-height:180px">
+            <b>✓</b>
+            <h2>Application Submitted!</h2>
+            <p>Your pitch for <b>${escapeHTML(opp?.title || "this posting")}</b> is in. The recruiter's AI will review it and may invite you to an AI mock interview.</p>
+          </div>
+          <button class="primary" style="width:100%;margin-top:12px" data-action="close-modal">Back to Feed</button>
+        </section>
+      </div>
+    `;
+    render();
+    return;
+  }
 
   if (form.id === "opportunity-form") {
     const data = formData(form);

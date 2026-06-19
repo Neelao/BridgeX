@@ -207,7 +207,6 @@ export function renderAccessPage(entryRole, verificationResult) {
               <h2>Verified! Taking you in...</h2>
               <p>Final access is created only after the review email is approved, keeping the network locked from unverified accounts.</p>
             </div>
-            <button class="portal-submit" type="submit">Continue to review</button>
           </section>
         </div>
       </form>
