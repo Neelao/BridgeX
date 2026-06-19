@@ -1,65 +1,168 @@
 import { badgeClass, escapeHTML, html, truncate } from "../../shared/utils.js";
 
-function appRows(state) {
-  return state.applications
-    .map((app) => ({
-      app,
-      candidate: state.candidates.find((item) => item.id === app.candidateId),
-      opportunity: state.opportunities.find((item) => item.id === app.opportunityId),
-      score: app.interview?.summary?.score ?? app.analysis?.score ?? 0
-    }))
-    .sort((a, b) => b.score - a.score);
-}
+export function renderDashboard(state, user) {
+  const myOppIds = new Set(
+    state.opportunities.filter((opp) => opp.ownerId === user.id).map((opp) => opp.id)
+  );
 
-export function renderDashboard(state) {
-  const rows = appRows(state);
-  const complete = rows.filter((row) => row.app.interview).length;
-  const avg = rows.length ? Math.round(rows.reduce((sum, row) => sum + row.score, 0) / rows.length) : 0;
+  const oppMap = new Map();
+  state.opportunities
+    .filter((opp) => myOppIds.has(opp.id))
+    .forEach((opp) => {
+      const apps = state.applications
+        .filter((app) => app.opportunityId === opp.id)
+        .map((app) => ({
+          app,
+          candidate: state.candidates.find((c) => c.id === app.candidateId),
+          score: app.interview?.summary?.score ?? app.analysis?.score ?? 0
+        }))
+        .sort((a, b) => b.score - a.score);
+      oppMap.set(opp, apps);
+    });
+
+  const allApps = state.applications.filter((app) => myOppIds.has(app.opportunityId));
+  const totalApps = allApps.length;
+  const complete = allApps.filter((app) => app.interview).length;
+  const scores = allApps.map((app) => app.interview?.summary?.score ?? app.analysis?.score ?? 0);
+  const avg = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 0;
 
   return html`
     <section class="grid cols-3">
-      <div class="panel stat"><span>Open postings</span><b>${state.opportunities.length}</b></div>
-      <div class="panel stat"><span>Partner pitches</span><b>${state.applications.length}</b></div>
-      <div class="panel stat"><span>Avg fit score</span><b>${avg}</b></div>
+      <div class="panel stat"><span>Open postings</span><b>${state.opportunities.filter((o) => myOppIds.has(o.id)).length}</b></div>
+      <div class="panel stat"><span>Applications received</span><b>${totalApps}</b></div>
+      <div class="panel stat"><span>Avg AI fit score</span><b>${avg || "—"}</b></div>
     </section>
 
-    <section class="panel">
-      <div class="topbar">
+    <section>
+      <div class="topbar" style="margin-bottom:14px">
         <div>
-          <h2>Partner Pipeline</h2>
-          <p>${complete} guided pitch session(s) completed. Fit scores combine proposal evidence and interview answers.</p>
+          <h2>Application Pipeline</h2>
+          <p>AI-reviewed applications by posting. Invite strong candidates to an AI mock interview.</p>
         </div>
-        <button class="ghost" data-action="analyze-all">Review All</button>
+        <button class="ghost" data-action="analyze-all">Re-analyze All</button>
       </div>
-      <div class="list">
-        ${rows
-          .map(
-            ({ app, candidate, opportunity, score }) => html`
-              <article class="card">
-                <div class="row">
-                  <div>
-                    <div class="actions">
-                      <h3>${escapeHTML(candidate?.company || "Unknown company")}</h3>
-                      <span class="badge ${badgeClass(score)}">${score || "Pending"} fit</span>
-                      <span class="badge">${escapeHTML(app.status)}</span>
+
+      ${
+        oppMap.size === 0
+          ? `<div class="empty"><p>No applications yet. Share your postings in the feed to start receiving pitches.</p></div>`
+          : [...oppMap.entries()]
+              .map(
+                ([opp, appRows]) => html`
+                  <div class="opp-pipeline">
+                    <div class="opp-pipeline-head">
+                      <h3>${escapeHTML(opp.title)}</h3>
+                      <span class="badge">${appRows.length} application${appRows.length !== 1 ? "s" : ""}</span>
+                      <span class="badge good">${escapeHTML(opp.status)}</span>
                     </div>
-                    <p>${escapeHTML(opportunity?.title || "")}</p>
-                    <p>${escapeHTML(truncate(app.interview?.summary?.pitchSummary || app.proposalText, 190))}</p>
-                    <div class="score-wrap">
-                      <div class="score-line"><div class="score-fill" style="--score: ${score}%"></div></div>
-                    </div>
+
+                    ${
+                      appRows.length === 0
+                        ? `<div class="empty" style="margin-bottom:16px"><p>No applications yet for this posting.</p></div>`
+                        : html`
+                            <div class="list">
+                              ${appRows
+                                .map(
+                                  ({ app, candidate, score }) => html`
+                                    <article class="card ai-summary-card">
+                                      <div class="ai-summary-head">
+                                        <div class="company-dot">${escapeHTML(candidate?.company?.slice(0, 1) || "?")}</div>
+                                        <div>
+                                          <h3>${escapeHTML(candidate?.company || "Unknown company")}</h3>
+                                          <span>${escapeHTML(candidate?.name || "")} · ${escapeHTML(candidate?.role || "")} · ${escapeHTML(candidate?.email || "")}</span>
+                                        </div>
+                                        <span class="badge ${badgeClass(score)}">${score || "—"}</span>
+                                        <span class="badge">${escapeHTML(app.status)}</span>
+                                      </div>
+
+                                      ${
+                                        app.whyApply || app.proposalText
+                                          ? html`
+                                              <div class="ai-why-apply">
+                                                <b>Why they applied</b>
+                                                <p>${escapeHTML(truncate(app.whyApply || app.proposalText, 300))}</p>
+                                              </div>
+                                            `
+                                          : ""
+                                      }
+
+                                      ${
+                                        app.resume || (app.documents && app.documents.length)
+                                          ? html`
+                                              <div class="ai-resume">
+                                                ${(app.resume ? [app.resume] : app.documents)
+                                                  .map((doc) => `<span class="badge">📄 ${escapeHTML(doc.name)}</span>`)
+                                                  .join("")}
+                                              </div>
+                                            `
+                                          : ""
+                                      }
+
+                                      ${
+                                        app.analysis
+                                          ? html`
+                                              <div class="ai-analysis">
+                                                <div class="ai-analysis-header">
+                                                  <b>AI Summary</b>
+                                                  <span class="badge ${badgeClass(score)}">${escapeHTML(app.analysis.recommendation)}</span>
+                                                </div>
+                                                <div class="score-wrap">
+                                                  <div class="score-line"><div class="score-fill" style="--score: ${score}%"></div></div>
+                                                  <span class="hint">${score}/100 fit score</span>
+                                                </div>
+                                                ${
+                                                  app.analysis.strengths?.length
+                                                    ? html`
+                                                        <div class="ai-points">
+                                                          <span class="ai-label good-label">Strengths</span>
+                                                          ${app.analysis.strengths
+                                                            .slice(0, 3)
+                                                            .map((s) => `<span class="ai-point good">✓ ${escapeHTML(s)}</span>`)
+                                                            .join("")}
+                                                        </div>
+                                                      `
+                                                    : ""
+                                                }
+                                                ${
+                                                  app.analysis.risks?.length
+                                                    ? html`
+                                                        <div class="ai-points">
+                                                          <span class="ai-label risk-label">Gaps to probe</span>
+                                                          ${app.analysis.risks
+                                                            .slice(0, 2)
+                                                            .map((r) => `<span class="ai-point risk">⚠ ${escapeHTML(r)}</span>`)
+                                                            .join("")}
+                                                        </div>
+                                                      `
+                                                    : ""
+                                                }
+                                              </div>
+                                            `
+                                          : `<div class="hint" style="padding:8px">AI analysis pending — click Re-analyze All to generate scores.</div>`
+                                      }
+
+                                      <div class="ai-actions">
+                                        <button class="mini-btn" data-action="view-candidate" data-app="${app.id}">Full Details</button>
+                                        ${
+                                          !app.interview
+                                            ? `<button class="primary invite-btn" data-action="invite-interview" data-app="${app.id}">Invite to AI Interview</button>`
+                                            : html`
+                                                <button class="mini-btn" data-action="view-candidate" data-app="${app.id}">View Interview</button>
+                                                <button class="primary" data-action="schedule" data-app="${app.id}">Schedule Meeting</button>
+                                              `
+                                        }
+                                      </div>
+                                    </article>
+                                  `
+                                )
+                                .join("")}
+                            </div>
+                          `
+                    }
                   </div>
-                  <div class="actions">
-                    <button class="mini-btn" data-action="view-candidate" data-app="${app.id}">Details</button>
-                    <button class="mini-btn" data-action="start-interview" data-app="${app.id}">Interview</button>
-                    <button class="primary" data-action="schedule" data-app="${app.id}">Connect</button>
-                  </div>
-                </div>
-              </article>
-            `
-          )
-          .join("")}
-      </div>
+                `
+              )
+              .join("")
+      }
     </section>
   `;
 }
