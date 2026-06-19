@@ -25,19 +25,36 @@ export function renderDashboard(state, user) {
   const complete = allApps.filter((app) => app.interview).length;
   const scores = allApps.map((app) => app.interview?.summary?.score ?? app.analysis?.score ?? 0);
   const avg = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 0;
+  const topScore = scores.length ? Math.max(...scores) : 0;
+  const readyMeetings = allApps.filter((app) => app.interview || app.meeting).length;
 
   return html`
-    <section class="grid cols-3">
-      <div class="panel stat"><span>Open postings</span><b>${state.opportunities.filter((o) => myOppIds.has(o.id)).length}</b></div>
-      <div class="panel stat"><span>Applications received</span><b>${totalApps}</b></div>
-      <div class="panel stat"><span>Avg AI fit score</span><b>${avg || "—"}</b></div>
-    </section>
+    <section class="dashboard-page">
+      <div class="dashboard-hero">
+        <div>
+          <span class="hero-pill">Verified company workspace</span>
+          <h2>Candidate rankings for partnership opportunities</h2>
+          <p>AI-screened proposals, interview status, and connection readiness in one clean recruiter view.</p>
+        </div>
+        <div class="dashboard-verify-card">
+          <b>✓ Verified</b>
+          <span>Access unlocked after company evidence checks</span>
+        </div>
+      </div>
 
-    <section>
-      <div class="topbar" style="margin-bottom:14px">
+      <section class="dashboard-stats">
+        <div class="panel stat"><span>Open postings</span><b>${state.opportunities.filter((o) => myOppIds.has(o.id)).length}</b></div>
+        <div class="panel stat"><span>Applications received</span><b>${totalApps}</b></div>
+        <div class="panel stat"><span>Avg fit score</span><b>${avg || "—"}${avg ? "%" : ""}</b></div>
+        <div class="panel stat"><span>Top candidate</span><b>${topScore || "—"}${topScore ? "%" : ""}</b></div>
+        <div class="panel stat"><span>Ready for meeting</span><b>${readyMeetings}</b></div>
+      </section>
+
+      <section class="dashboard-section">
+        <div class="topbar dashboard-section-head">
         <div>
           <h2>Application Pipeline</h2>
-          <p>AI-reviewed applications by posting. Invite strong candidates to an AI mock interview.</p>
+          <p>Ranked applications by posting. Invite strong companies to a guided pitch interview.</p>
         </div>
         <button class="ghost" data-action="analyze-all">Re-analyze All</button>
       </div>
@@ -163,6 +180,7 @@ export function renderDashboard(state, user) {
               )
               .join("")
       }
+      </section>
     </section>
   `;
 }

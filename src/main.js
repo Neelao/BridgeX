@@ -3,14 +3,14 @@ import { renderAuth } from "./features/auth/auth.js";
 import { renderCandidateApply } from "./features/candidates/candidates.js";
 import { renderDashboard } from "./features/dashboard/dashboard.js";
 import { renderDocuments } from "./features/documents/documents.js";
-import { renderIntentPicker } from "./features/intent/intent.js";
+import { renderCompanyTypePicker, renderIntentPicker } from "./features/intent/intent.js";
 import { buildInterviewQuestions } from "./features/interview/interview.js";
 import { renderNetworkFeed } from "./features/feed/feed.js";
 import { partnershipAreas } from "./features/partnership/areas.js";
 import { renderLanding } from "./features/public/landing.js";
 import { renderRequirements } from "./features/requirements/requirements.js";
 import { renderScheduleModal } from "./features/scheduling/scheduling.js";
-import { renderAccessPage, renderReviewPage, verifyAccess } from "./features/verification/verification.js";
+import { buildAiHelperReply, renderAccessPage, renderReviewPage, reviewAuthorizationLetter, verifyAccess } from "./features/verification/verification.js";
 import { loadState, resetState, saveState, uid } from "./shared/state.js";
 import { byId, escapeHTML, formData, html } from "./shared/utils.js";
 
@@ -20,6 +20,8 @@ let activeUserId = state.users[0].id;
 let modal = "";
 let entryRole = "recruiter";
 let verificationResult = null;
+let aiHelperMessages = [];
+let accessDraft = {};
 let expandedComments = new Set();
 
 const routes = [
@@ -50,6 +52,39 @@ function analyze(app) {
   app.status = app.status === "submitted" ? "analyzed" : app.status;
 }
 
+function askAiHelper(question) {
+  const cleanQuestion = question.trim();
+  if (!cleanQuestion) return;
+  aiHelperMessages.push({ role: "user", text: cleanQuestion });
+  aiHelperMessages.push({
+    role: "assistant",
+    text: buildAiHelperReply(cleanQuestion, {
+      entryRole,
+      verificationResult,
+      user: currentUser()
+    })
+  });
+  aiHelperMessages = aiHelperMessages.slice(-8);
+}
+
+function updateAccessDraft(data) {
+  accessDraft = {
+    name: data.name || "",
+    company: data.company || "",
+    email: data.email || "",
+    hrEmail: data.hrEmail || "",
+    roleTitle: data.roleTitle || "",
+    businessCode: data.businessCode || "",
+    linkedIn: data.linkedIn || "",
+    password: data.password || "",
+    authorizedBy: data.authorizedBy || "",
+    letterPurpose: data.letterPurpose || "",
+    supportPurpose: data.supportPurpose || "",
+    orgType: data.orgType || accessDraft.orgType || "",
+    preference: data.preference || accessDraft.preference || ""
+  };
+}
+
 function protectedRoute(nextRoute) {
   return ["feed", "dashboard", "requirements", "apply", "documents", "auth"].includes(nextRoute);
 }
@@ -57,10 +92,11 @@ function protectedRoute(nextRoute) {
 function renderMain() {
   if (protectedRoute(route) && !currentUser().verified) {
     route = "access";
-    return renderAccessPage(entryRole, verificationResult);
+    return renderAccessPage(entryRole, verificationResult, aiHelperMessages, accessDraft);
   }
   if (route === "home") return renderLanding();
-  if (route === "access") return renderAccessPage(entryRole, verificationResult);
+  if (route === "company-type") return renderCompanyTypePicker();
+  if (route === "access") return renderAccessPage(entryRole, verificationResult, aiHelperMessages, accessDraft);
   if (route === "review") return renderReviewPage(currentUser());
   if (route === "intent") return renderIntentPicker(entryRole, partnershipAreas);
   if (route === "feed") return renderNetworkFeed(state, currentUser(), partnershipAreas, expandedComments);
@@ -73,7 +109,7 @@ function renderMain() {
 
 function appShell() {
   const user = currentUser();
-  if (route === "home" || route === "access" || route === "intent") {
+  if (route === "home" || route === "access" || route === "intent" || route === "company-type") {
     return html`
       <main class="public-shell">
         <header class="public-nav">
@@ -357,35 +393,6 @@ function showApplyModal(oppId) {
 }
 
 document.addEventListener("click", async (event) => {
-  const stepLabel = event.target.closest("label.step-button");
-  if (stepLabel?.getAttribute("for") === "portal-step-4") {
-    const form = document.getElementById("entry-access-form");
-    if (form) {
-      const data = formData(form);
-      verificationResult = verifyAccess(data);
-      const user = currentUser();
-      user.name = data.name;
-      user.company = data.company;
-      user.email = data.email;
-      user.verified = true;
-      user.verification = {
-        hrEmail: data.hrEmail,
-        authorizedBy: data.authorizedBy,
-        businessCode: verificationResult.registration,
-        linkedIn: verificationResult.linkedIn,
-        letterName: verificationResult.letterName,
-        signed: Boolean(data.signed),
-        score: verificationResult.score,
-        status: "verified",
-        checkedAt: new Date().toISOString()
-      };
-      saveState(state);
-      route = "feed";
-      render();
-      return;
-    }
-  }
-
   const target = event.target.closest("button, .modal-backdrop");
   if (!target) return;
 
@@ -410,14 +417,40 @@ document.addEventListener("click", async (event) => {
     activeUserId = state.users[0].id;
     modal = "";
     route = "home";
+    aiHelperMessages = [];
+    accessDraft = {};
+    render();
+  }
+
+  if (target.dataset.action === "enter-company") {
+    activeUserId = "u_recruiter";
+    entryRole = "recruiter";
+    route = "company-type";
+    verificationResult = null;
+    aiHelperMessages = [];
+    accessDraft = {};
+    modal = "";
+    render();
+  }
+
+  if (target.dataset.action === "choose-company-type") {
+    activeUserId = "u_recruiter";
+    entryRole = "recruiter";
+    verificationResult = null;
+    aiHelperMessages = [];
+    accessDraft = { orgType: target.dataset.companyType || "company" };
+    modal = "";
+    route = "intent";
     render();
   }
 
   if (target.dataset.action === "enter-recruiter") {
     activeUserId = "u_recruiter";
     entryRole = "recruiter";
-    route = "access";
+    route = "company-type";
     verificationResult = null;
+    aiHelperMessages = [];
+    accessDraft = {};
     modal = "";
     render();
   }
@@ -425,8 +458,10 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "enter-candidate") {
     activeUserId = "u_candidate";
     entryRole = "candidate";
-    route = "access";
+    route = "intent";
     verificationResult = null;
+    aiHelperMessages = [];
+    accessDraft = { orgType: "pitcher" };
     modal = "";
     render();
   }
@@ -435,6 +470,162 @@ document.addEventListener("click", async (event) => {
     route = "home";
     modal = "";
     render();
+  }
+
+  if (target.dataset.action === "ask-ai-prompt") {
+    askAiHelper(target.dataset.question || "");
+    render();
+  }
+
+  if (target.dataset.action === "continue-details") {
+    const form = document.getElementById("entry-access-form");
+    if (!form) return;
+    const data = formData(form);
+    updateAccessDraft(data);
+    const missing = [];
+    const establishedCompany = entryRole === "recruiter" && (data.orgType || accessDraft.orgType) === "company";
+    if (!establishedCompany && !data.name?.trim()) missing.push("full name");
+    if (!data.company?.trim()) missing.push("company name");
+    if (!data.email?.trim()) missing.push("company email");
+    if (!data.hrEmail?.trim()) missing.push(entryRole === "candidate" ? "HR representative email" : "company admin email");
+    if (!data.roleTitle?.trim()) missing.push("role");
+    if (!data.businessCode?.trim()) missing.push("business registration code");
+    if (!data.password?.trim()) missing.push("password");
+    if (missing.length) {
+      aiHelperMessages.push({
+        role: "assistant",
+        text: `Before upload, please complete: ${missing.join(", ")}. LinkedIn is optional, so you can skip it for the demo.`
+      });
+      aiHelperMessages = aiHelperMessages.slice(-8);
+      render();
+      return;
+    }
+    const next = document.getElementById("portal-step-2");
+    if (next) next.checked = true;
+  }
+
+  if (target.dataset.action === "open-linkedin-connect") {
+    const form = document.getElementById("entry-access-form");
+    if (form) updateAccessDraft(formData(form));
+    const suggestedCompany = accessDraft.company || (entryRole === "recruiter" ? "northstar-ventures" : "greengrid-analytics");
+    modal = html`
+      <div class="modal-backdrop" data-action="close-modal">
+        <section class="modal linkedin-modal">
+          <div class="topbar">
+            <div>
+              <h2>Connect LinkedIn</h2>
+              <p>BridgeX uses this as a trust signal for the company or representative profile.</p>
+            </div>
+            <button class="ghost" data-action="close-modal">Close</button>
+          </div>
+          <div class="linkedin-preview">
+            <div class="ai-orb">in</div>
+            <div>
+              <b>LinkedIn authorization</b>
+              <span>Review basic profile and company page link</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>LinkedIn profile or company page</label>
+            <input id="linkedin-modal-url" type="url" value="https://www.linkedin.com/company/${escapeHTML(String(suggestedCompany).toLowerCase().replaceAll(" ", "-"))}" />
+          </div>
+          <button class="primary" style="width:100%" data-action="complete-linkedin-connect">Connect LinkedIn</button>
+        </section>
+      </div>
+    `;
+    render();
+  }
+
+  if (target.dataset.action === "complete-linkedin-connect") {
+    const value = byId("linkedin-modal-url")?.value.trim() || "";
+    if (!/^https:\/\/(www\.)?linkedin\.com\/(company|in)\//i.test(value)) {
+      alert("Please use a LinkedIn company page or profile URL.");
+      return;
+    }
+    accessDraft.linkedIn = value;
+    modal = "";
+    route = "access";
+    render();
+  }
+
+  if (target.dataset.action === "run-document-review") {
+    const form = document.getElementById("entry-access-form");
+    if (!form) return;
+    const data = formData(form);
+    updateAccessDraft(data);
+    modal = html`
+      <div class="modal-backdrop ai-review-backdrop">
+        <section class="modal ai-review-card">
+          <div class="ai-review-loader"></div>
+          <h2>AI helper is reviewing your upload...</h2>
+          <p>Checking file type, size, company domain, ${entryRole === "candidate" ? "HR approval email" : "company admin email"}, registration code, optional LinkedIn signal, and signature confirmation.</p>
+        </section>
+      </div>
+    `;
+    render();
+    setTimeout(() => {
+      verificationResult = reviewAuthorizationLetter(data);
+      const user = currentUser();
+      user.name = data.name || data.company;
+      user.company = data.company;
+      user.email = data.email;
+      user.verified = false;
+      user.verification = {
+        ...(user.verification || {}),
+        hrEmail: data.hrEmail,
+        authorizedBy: data.authorizedBy,
+        businessCode: verificationResult.registration,
+        linkedIn: verificationResult.linkedIn,
+        letterName: verificationResult.letterName,
+        letterSize: verificationResult.letterSize,
+        supportName: verificationResult.supportName,
+        supportSize: verificationResult.supportSize,
+        letterPurpose: verificationResult.letterPurpose,
+        supportPurpose: verificationResult.supportPurpose,
+        signed: Boolean(data.signed),
+        score: verificationResult.score,
+        status: verificationResult.status,
+        checks: verificationResult.checks,
+        checkedAt: new Date().toISOString(),
+        codeDelivery: verificationResult.status === "document_verified" ? (entryRole === "candidate" ? "sent_to_candidate_and_hr" : "not_required_for_recruiter") : "not_sent"
+      };
+      if (entryRole === "recruiter" && verificationResult.status === "document_verified") {
+        user.verified = true;
+        user.verification.status = "verified";
+        user.verification.verifiedAt = new Date().toISOString();
+        saveState(state);
+        modal = html`
+          <div class="modal-backdrop verified-transfer">
+            <section class="modal transfer-card">
+              <div class="approved-state">
+                <b>✓</b>
+                <h2>Verified! Bringing you to the dashboard...</h2>
+                <p>${escapeHTML(user.company)} passed the company email, admin contact, business code, authorization letter, and signature checks.</p>
+              </div>
+            </section>
+          </div>
+        `;
+        render();
+        setTimeout(() => {
+          modal = "";
+          route = "dashboard";
+          verificationResult = null;
+          render();
+        }, 1200);
+        return;
+      }
+      saveState(state);
+      aiHelperMessages.push({
+        role: "assistant",
+        text:
+          verificationResult.status === "document_verified"
+            ? `I reviewed ${verificationResult.letterName} and the evidence packet passed. I sent verification code 123456 to ${entryRole === "candidate" ? "the candidate and HR emails" : "the requester and company admin emails"}. Type it in the code field to continue.`
+            : `I reviewed the uploaded evidence and found issues. ${buildAiHelperReply("Why did verification fail?", { verificationResult })}`
+      });
+      aiHelperMessages = aiHelperMessages.slice(-8);
+      modal = "";
+      render();
+    }, 950);
   }
 
   if (target.dataset.action === "review-approved") {
@@ -469,6 +660,8 @@ document.addEventListener("click", async (event) => {
     const user = currentUser();
     user.verified = false;
     verificationResult = null;
+    aiHelperMessages = [];
+    accessDraft = {};
     route = "access";
     saveState(state);
     render();
@@ -482,8 +675,9 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "choose-area") {
     const user = currentUser();
     user.preference = target.dataset.area;
+    accessDraft.preference = target.dataset.area;
     saveState(state);
-    route = "feed";
+    route = "access";
     render();
   }
 
@@ -558,9 +752,33 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !["letter", "supportDocument"].includes(input.name)) return;
+  const file = input.files?.[0];
+  const status = document.querySelector(`[data-upload-status="${input.name}"]`);
+  if (!status) return;
+  if (!file) {
+    status.textContent = input.name === "letter" ? "No file selected yet" : "No supporting file selected";
+    status.classList.remove("has-file");
+    return;
+  }
+  const sizeKb = Math.max(1, Math.round(file.size / 1024));
+  status.textContent = `Uploaded: ${file.name} · ${sizeKb} KB`;
+  status.classList.add("has-file");
+});
+
 document.addEventListener("submit", (event) => {
   event.preventDefault();
   const form = event.target;
+
+  if (form.id === "ai-helper-form") {
+    const data = formData(form);
+    askAiHelper(data.question || "");
+    form.reset();
+    render();
+    return;
+  }
 
   if (form.dataset.action === "add-comment") {
     const data = formData(form);
@@ -650,24 +868,52 @@ document.addEventListener("submit", (event) => {
 
   if (form.id === "entry-access-form") {
     const data = formData(form);
-    verificationResult = verifyAccess(data);
+    updateAccessDraft(data);
+    verificationResult = verifyAccess(data, verificationResult);
     const user = currentUser();
-    user.name = data.name;
+    user.name = data.name || data.company;
     user.company = data.company;
     user.email = data.email;
-    user.verified = false;
+    user.verified = verificationResult.status === "verified";
     user.verification = {
       hrEmail: data.hrEmail,
       authorizedBy: data.authorizedBy,
       businessCode: verificationResult.registration,
       linkedIn: verificationResult.linkedIn,
       letterName: verificationResult.letterName,
+      letterSize: verificationResult.letterSize,
+      supportName: verificationResult.supportName,
+      supportSize: verificationResult.supportSize,
+      letterPurpose: verificationResult.letterPurpose,
+      supportPurpose: verificationResult.supportPurpose,
       signed: Boolean(data.signed),
       score: verificationResult.score,
       status: verificationResult.status,
+      checks: verificationResult.checks,
       checkedAt: new Date().toISOString()
     };
     saveState(state);
+    if (user.verified) {
+      modal = html`
+        <div class="modal-backdrop verified-transfer">
+          <section class="modal transfer-card">
+            <div class="approved-state">
+              <b>✓</b>
+              <h2>Verified! Bringing you to the dashboard...</h2>
+              <p>${escapeHTML(user.company)} passed the company email, ${entryRole === "candidate" ? "HR approval" : "company admin approval"}, business code, authorization letter, signature, and code checks.</p>
+            </div>
+          </section>
+        </div>
+      `;
+      render();
+      setTimeout(() => {
+        modal = "";
+        route = "dashboard";
+        verificationResult = null;
+        render();
+      }, 1200);
+      return;
+    }
     render();
   }
 
