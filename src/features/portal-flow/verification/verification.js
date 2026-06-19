@@ -1,4 +1,4 @@
-import { escapeHTML, html } from "../../shared/utils.js";
+import { escapeHTML, html } from "../../../shared/utils.js";
 
 function emailDomain(email = "") {
   return email.toLowerCase().split("@")[1] || "";

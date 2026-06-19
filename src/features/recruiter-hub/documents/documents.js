@@ -1,4 +1,4 @@
-import { escapeHTML, html } from "../../shared/utils.js";
+import { escapeHTML, html } from "../../../shared/utils.js";
 
 export function renderDocuments(state) {
   const rows = state.applications.flatMap((app) => {

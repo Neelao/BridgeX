@@ -1,4 +1,4 @@
-import { escapeHTML, html, truncate } from "../../shared/utils.js";
+import { escapeHTML, html, truncate } from "../../../shared/utils.js";
 
 export function renderCandidateApply(state) {
   const opportunities = state.opportunities.filter((item) => item.status === "open");

@@ -1,4 +1,4 @@
-import { escapeHTML, html } from "../../shared/utils.js";
+import { escapeHTML, html } from "../../../shared/utils.js";
 
 const gradients = [
   "gradient-1",

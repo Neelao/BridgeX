@@ -1,4 +1,4 @@
-import { escapeHTML, html } from "../../shared/utils.js";
+import { escapeHTML, html } from "../../../shared/utils.js";
 
 export function renderAuth(state, activeUserId) {
   const user = state.users.find((item) => item.id === activeUserId) || state.users[0];
