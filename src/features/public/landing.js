@@ -10,12 +10,12 @@ export function renderLanding() {
           BridgeX verifies companies, screens partnership proposals, and helps teams move from trusted discovery to real meetings.
         </p>
         <div class="hero-actions">
-          <button class="hero-primary" data-action="enter-recruiter">
-            <span>Post an Opportunity</span>
+          <button class="hero-primary" data-action="enter-company">
+            <span>Company</span>
             <b>→</b>
           </button>
           <button class="hero-secondary" data-action="enter-candidate">
-            <span>Browse Opportunities</span>
+            <span>Pitcher</span>
             <b>→</b>
           </button>
         </div>

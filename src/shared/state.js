@@ -1,6 +1,6 @@
 import { seed } from "./data.js";
 
-const KEY = "bridgex_state_v12";
+const KEY = "bridgex_state_v16";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
