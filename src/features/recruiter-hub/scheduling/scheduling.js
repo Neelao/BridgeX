@@ -1,4 +1,4 @@
-import { escapeHTML, html, todayPlus } from "../../shared/utils.js";
+import { escapeHTML, html, todayPlus } from "../../../shared/utils.js";
 
 export function renderScheduleModal(app, candidate) {
   return html`

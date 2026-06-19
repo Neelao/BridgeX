@@ -1,4 +1,4 @@
-import { badgeClass, escapeHTML, html, truncate } from "../../shared/utils.js";
+import { badgeClass, escapeHTML, html, truncate } from "../../../shared/utils.js";
 
 export function renderDashboard(state, user) {
   const myOppIds = new Set(

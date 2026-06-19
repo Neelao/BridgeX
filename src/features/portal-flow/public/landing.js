@@ -1,4 +1,4 @@
-import { html } from "../../shared/utils.js";
+import { html } from "../../../shared/utils.js";
 
 export function renderLanding() {
   return html`
