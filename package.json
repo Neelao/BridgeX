@@ -1,0 +1,10 @@
+{
+  "name": "bridgex",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "preview": "node server.js"
+  }
+}
