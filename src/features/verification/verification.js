@@ -11,6 +11,7 @@ export function verifyAccess(data) {
   const letterName = data.letter?.name || "";
   const registration = data.businessCode?.trim() || "";
   const linkedIn = data.linkedIn?.trim() || "";
+  const verificationCode = data.verificationCode?.trim() || "";
   const checks = [
     {
       label: "Company email uses a business domain",
@@ -39,6 +40,10 @@ export function verifyAccess(data) {
     {
       label: "Signed or stamped confirmation is checked",
       passed: Boolean(data.signed)
+    },
+    {
+      label: "Email verification code is entered",
+      passed: /^\d{6}$/.test(verificationCode)
     }
   ];
   const score = Math.round((checks.filter((check) => check.passed).length / checks.length) * 100);
@@ -54,6 +59,15 @@ export function verifyAccess(data) {
 
 export function renderAccessPage(entryRole, verificationResult) {
   const isRecruiter = entryRole === "recruiter";
+  const sampleName = isRecruiter ? "Maya Lee" : "Aisha Tan";
+  const sampleCompany = isRecruiter ? "Northstar Ventures" : "GreenGrid Analytics";
+  const sampleEmail = isRecruiter ? "maya@northstar.co" : "aisha@greengrid.ai";
+  const sampleHr = isRecruiter ? "hr@northstar.co" : "hr@greengrid.ai";
+  const sampleRole = isRecruiter ? "Partnership Manager" : "Founder";
+  const sampleCode = isRecruiter ? "BRX-NSV-2026" : "BRX-GGA-2026";
+  const sampleLinkedIn = isRecruiter ? "https://www.linkedin.com/company/northstar-ventures" : "https://www.linkedin.com/company/greengrid-analytics";
+  const portalTitle = isRecruiter ? "Company Portal" : "Candidate Portal";
+  const portalSubtitle = isRecruiter ? "Verify your organization to post partnership opportunities" : "Verify your company to pitch for partnership opportunities";
   return html`
     <section class="portal-page">
       <button class="back-link" data-action="go-home">‹ Back to home</button>
@@ -61,88 +75,140 @@ export function renderAccessPage(entryRole, verificationResult) {
         <div class="portal-title">
           <div class="portal-icon">${isRecruiter ? "▦" : "◈"}</div>
           <div>
-            <h1>${isRecruiter ? "Company Portal" : "Candidate Portal"}</h1>
-            <p>${isRecruiter ? "Verify your organization to post partnership opportunities" : "Verify your company to browse and pitch opportunities"}</p>
+            <h1>${portalTitle}</h1>
+            <p>${portalSubtitle}</p>
           </div>
         </div>
+        <input class="step-radio" type="radio" id="portal-step-1" name="portalStep" checked />
+        <input class="step-radio" type="radio" id="portal-step-2" name="portalStep" />
+        <input class="step-radio" type="radio" id="portal-step-3" name="portalStep" />
+        <input class="step-radio" type="radio" id="portal-step-4" name="portalStep" />
         <div class="stepper">
-          <div class="step active"><b>1</b><span>Your Details</span></div>
+          <label class="step step-1" for="portal-step-1"><b>1</b><span>Your Details</span></label>
           <i></i>
-          <div class="step"><b>2</b><span>Auth Letter</span></div>
+          <label class="step step-2" for="portal-step-2"><b>2</b><span>Auth Letter</span></label>
           <i></i>
-          <div class="step"><b>3</b><span>Email Verify</span></div>
+          <label class="step step-3" for="portal-step-3"><b>3</b><span>Email Verify</span></label>
           <i></i>
-          <div class="step"><b>4</b><span>Approved</span></div>
+          <label class="step step-4" for="portal-step-4"><b>4</b><span>Approved</span></label>
         </div>
 
         <div class="portal-fields">
-          <div class="grid cols-2">
-            <div class="field">
-              <label>Your Full Name</label>
-              <input name="name" value="${isRecruiter ? "Maya Lee" : "Aisha Tan"}" required />
+          <section class="portal-step-panel step-panel-1">
+            <div class="grid cols-2">
+              <div class="field">
+                <label>Your Full Name</label>
+                <input name="name" value="${sampleName}" required />
+              </div>
+              <div class="field">
+                <label>Company Name</label>
+                <input name="company" value="${sampleCompany}" required />
+              </div>
             </div>
             <div class="field">
-              <label>Company Name</label>
-              <input name="company" value="${isRecruiter ? "Northstar Ventures" : "GreenGrid Analytics"}" required />
-            </div>
-          </div>
-          <div class="field">
-            <label>Your Company Email</label>
-            <input name="email" type="email" value="${isRecruiter ? "maya@northstar.co" : "aisha@greengrid.ai"}" required />
-            <span class="hint">Must match the email domain on your authorization letter.</span>
-          </div>
-          <div class="field">
-            <label>HR Representative Email</label>
-            <input name="hrEmail" type="email" value="${isRecruiter ? "hr@northstar.co" : "hr@greengrid.ai"}" required />
-            <span class="hint">The letter must reference this email. Verification codes go to both addresses.</span>
-          </div>
-          <div class="grid cols-2">
-            <div class="field">
-              <label>Your Role</label>
-              <input name="roleTitle" value="${isRecruiter ? "Partnership Manager" : "Founder"}" required />
+              <label>Your Company Email</label>
+              <input name="email" type="email" value="${sampleEmail}" required />
+              <span class="hint">Must match the email domain on your authorization letter.</span>
             </div>
             <div class="field">
-              <label>Business Registration Code</label>
-              <input name="businessCode" value="${isRecruiter ? "BRX-NSV-2026" : "BRX-GGA-2026"}" required />
+              <label>HR Representative Email</label>
+              <input name="hrEmail" type="email" value="${sampleHr}" required />
+              <span class="hint">The letter must reference this email. Verification codes go to both addresses.</span>
             </div>
-          </div>
-          <div class="grid cols-2">
+            <div class="grid cols-2">
+              <div class="field">
+                <label>Your Role</label>
+                <input name="roleTitle" value="${sampleRole}" required />
+              </div>
+              <div class="field">
+                <label>Business Registration Code</label>
+                <input name="businessCode" value="${sampleCode}" required />
+              </div>
+            </div>
+            <div class="grid cols-2">
+              <div class="field">
+                <label>LinkedIn Company/Profile Link</label>
+                <input name="linkedIn" type="url" value="${sampleLinkedIn}" required />
+              </div>
+              <div class="field">
+                <label>Password</label>
+                <input name="password" type="password" value="bridgexdemo" required />
+              </div>
+            </div>
+            <label class="portal-submit step-next" for="portal-step-2">Continue <span>›</span></label>
+          </section>
+
+          <section class="portal-step-panel step-panel-2">
+            <div class="auth-requirements">
+              <h2>Authorization letter requirements</h2>
+              <div class="requirement-list">
+                <span>Your full name — "${sampleName}"</span>
+                <span>Your company email — "${sampleEmail}"</span>
+                <span>HR representative email — "${sampleHr}"</span>
+                <span>Written on official company letterhead</span>
+                <span>Signed by an authorized company signatory</span>
+                <span>States that you are authorized to ${isRecruiter ? "seek partners and post opportunities" : "pitch partnerships"} on behalf of the company</span>
+              </div>
+            </div>
+            <label class="upload-zone">
+              <input name="letter" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
+              <b>⇧</b>
+              <strong>Upload authorization letter</strong>
+              <span>PDF, DOC, PNG, or JPG • max 10 MB</span>
+            </label>
             <div class="field">
-              <label>LinkedIn Company/Profile Link</label>
-              <input name="linkedIn" type="url" value="${isRecruiter ? "https://www.linkedin.com/company/northstar-ventures" : "https://www.linkedin.com/company/greengrid-analytics"}" required />
+              <label>Authorization Contact</label>
+              <input name="authorizedBy" value="${isRecruiter ? "Northstar HR Admin" : "GreenGrid HR Admin"}" required />
+            </div>
+            <label class="check-row">
+              <input name="signed" type="checkbox" required checked />
+              <span>I confirm the letter is approved by the company and signed or stamped.</span>
+            </label>
+            <div class="letter-warning">
+              Your letter will be reviewed by our team within 24 hours. You will receive a verification code only after the document is approved.
+            </div>
+            <div class="portal-actions">
+              <label class="ghost step-button" for="portal-step-1">Back</label>
+              <label class="portal-submit step-button" for="portal-step-3">Submit Letter</label>
+            </div>
+          </section>
+
+          <section class="portal-step-panel step-panel-3">
+            <div class="success-note">
+              Letter approved. Verification codes sent to <b>${sampleEmail}</b> and <b>${sampleHr}</b>.
             </div>
             <div class="field">
-              <label>Password</label>
-              <input name="password" type="password" value="bridgexdemo" required />
+              <label>Verification Code</label>
+              <input name="verificationCode" inputmode="numeric" pattern="[0-9]{6}" value="123456" required />
+              <span class="hint">Both the applicant and HR must confirm. Enter either code to proceed.</span>
             </div>
-          </div>
-          <div class="field">
-            <label>Official Authorization Letter</label>
-            <input name="letter" type="file" accept=".pdf,.doc,.docx,.txt" required />
-            <span class="hint">Letter must include company name, business registration code, your name/email, HR/admin email, purpose of pitching or recruiting, and company signature/stamp.</span>
-          </div>
-          <div class="field">
-            <label>Authorization Contact</label>
-            <input name="authorizedBy" value="${isRecruiter ? "Northstar HR Admin" : "GreenGrid HR Admin"}" required />
-          </div>
-          <label class="check-row">
-            <input name="signed" type="checkbox" required checked />
-            <span>I confirm the letter is approved by the company and signed or stamped.</span>
-          </label>
-          ${
-            verificationResult
-              ? html`
-                  <div class="verification-result ${verificationResult.status}">
-                    <b>${verificationResult.status === "pending_review" ? "Submitted for review" : "Verification blocked"}</b>
-                    <span>
-                      ${verificationResult.score}/100 trust readiness.
-                      ${verificationResult.status === "pending_review" ? "Network and dashboard remain locked until final approval." : "Fix the failed items before submitting again."}
-                    </span>
-                  </div>
-                `
-              : ""
-          }
-          <button class="portal-submit" type="submit">Continue <span>›</span></button>
+            ${
+              verificationResult
+                ? html`
+                    <div class="verification-result ${verificationResult.status}">
+                      <b>${verificationResult.status === "pending_review" ? "Submitted for review" : "Verification blocked"}</b>
+                      <span>
+                        ${verificationResult.score}/100 trust readiness.
+                        ${verificationResult.status === "pending_review" ? "Network and dashboard remain locked until final approval." : "Fix the failed items before submitting again."}
+                      </span>
+                    </div>
+                  `
+                : ""
+            }
+            <div class="portal-actions">
+              <label class="ghost step-button" for="portal-step-2">Back</label>
+              <label class="portal-submit step-button" for="portal-step-4">Verify & Enter</label>
+            </div>
+          </section>
+
+          <section class="portal-step-panel step-panel-4">
+            <div class="approved-state">
+              <b>✓</b>
+              <h2>Verified! Taking you in...</h2>
+              <p>Final access is created only after the review email is approved, keeping the network locked from unverified accounts.</p>
+            </div>
+            <button class="portal-submit" type="submit">Continue to review</button>
+          </section>
         </div>
       </form>
     </section>
