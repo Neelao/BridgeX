@@ -1,10 +1,9 @@
 import { seed } from "./data.js";
+import { apiSaveState } from "./api.js";
 
-const KEY = "bridgex_state_v16";
+const KEY = "bridgex_state_v17";
 
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
+function clone(v) { return JSON.parse(JSON.stringify(v)); }
 
 export function loadState() {
   const saved = localStorage.getItem(KEY);
@@ -16,6 +15,7 @@ export function loadState() {
 
 export function saveState(state) {
   localStorage.setItem(KEY, JSON.stringify(state));
+  apiSaveState(state); // fire-and-forget to server
 }
 
 export function resetState() {

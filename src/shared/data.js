@@ -7,7 +7,8 @@ export const seed = {
       role: "recruiter",
       company: "Northstar Ventures",
       linkedIn: "https://www.linkedin.com/company/northstar-ventures",
-      verified: false
+      verified: true,
+      verification: { status: "verified", verifiedAt: "2025-01-01T00:00:00.000Z" }
     },
     {
       id: "u_candidate",
@@ -16,7 +17,8 @@ export const seed = {
       role: "candidate",
       company: "GreenGrid Analytics",
       linkedIn: "https://www.linkedin.com/company/greengrid-analytics",
-      verified: false
+      verified: true,
+      verification: { status: "verified", verifiedAt: "2025-01-01T00:00:00.000Z" }
     }
   ],
   opportunities: [

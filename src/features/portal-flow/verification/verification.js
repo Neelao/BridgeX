@@ -387,8 +387,12 @@ export function renderAccessPage(entryRole, verificationResult, aiMessages = [],
                 <span>This password is used when you return to BridgeX after verification.</span>
               </div>
               <div class="field">
-                <label>Password</label>
-                <input name="password" type="password" value="${escapeHTML(draft.password || "")}" placeholder="Create a password" required />
+                <label data-tooltip="Min 8 characters. You'll use this to sign in after verification.">Password</label>
+                <input name="password" type="password" value="${escapeHTML(draft.password || "")}" placeholder="Create a password" autocomplete="new-password" required />
+              </div>
+              <div class="field">
+                <label data-tooltip="Optional. Enter a referral code if someone invited you to BridgeX.">Referral code <small>Optional</small></label>
+                <input name="referralCode" value="${escapeHTML(draft.referralCode || "")}" placeholder="e.g. BXR-MAYA2026" />
               </div>
             </div>
 
@@ -441,11 +445,12 @@ export function renderAccessPage(entryRole, verificationResult, aiMessages = [],
                     <option value="company_letterhead" ${draft.letterPurpose === "company_letterhead" ? "selected" : ""}>Official company letterhead</option>
                   </select>
                 </div>
-                <label class="upload-zone compact-upload">
+                <label class="upload-zone compact-upload" data-dropzone="letter" data-tooltip="Drag a file here or click to browse">
                   <input name="letter" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
                   <b>⇧</b>
                   <strong>Upload document 1</strong>
                   <span>PDF, DOC, TXT, PNG, or JPG • max 10 MB</span>
+                  <span class="drop-hint">or drag &amp; drop from your file explorer</span>
                   <em class="${verificationResult?.letterName ? "has-file" : ""}" data-upload-status="letter">
                     ${verificationResult?.letterName ? `Uploaded: ${escapeHTML(verificationResult.letterName)}` : "No file selected yet"}
                   </em>
@@ -469,11 +474,12 @@ export function renderAccessPage(entryRole, verificationResult, aiMessages = [],
                     <option value="signed_mou" ${draft.supportPurpose === "signed_mou" ? "selected" : ""}>Signed MOU / partnership proof</option>
                   </select>
                 </div>
-                <label class="upload-zone compact-upload support-upload">
+                <label class="upload-zone compact-upload support-upload" data-dropzone="supportDocument" data-tooltip="Drag a supporting file here or click to browse">
                   <input name="supportDocument" type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg" />
                   <b>+</b>
                   <strong>Upload supporting document</strong>
                   <span>Business registration, ${isRecruiter ? "admin proof" : "HR proof"}, company profile, or signed record</span>
+                  <span class="drop-hint">or drag &amp; drop from your file explorer</span>
                   <em class="${verificationResult?.supportName ? "has-file" : ""}" data-upload-status="supportDocument">
                     ${verificationResult?.supportName ? `Uploaded: ${escapeHTML(verificationResult.supportName)}` : "No supporting file selected"}
                   </em>
