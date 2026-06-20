@@ -66,7 +66,7 @@ function appShell() {
   const routes = getRoutes();
   return html`
     <main class="shell">
-      <aside class="sidebar">
+      <header class="app-header">
         <div class="brand">
           <div class="mark">BX</div>
           <div>
@@ -79,15 +79,36 @@ function appShell() {
             <button class="${ctx.route === id ? "active" : ""}" data-route="${id}">${label}</button>
           `).join("")}
         </nav>
-        <div class="user-panel">
-          <strong>${escapeHTML(user.name || "New account")}</strong>
-          ${user.email ? `<span class="hint user-email">${escapeHTML(user.email)}</span>` : ""}
-          <span>${escapeHTML(user.company || "")}${user.company ? " · " : ""}${escapeHTML(isCandidate() ? "Candidate" : "Company")}</span>
-          <span class="badge ${user.verified ? "good" : "warn"}">${user.verified ? "Verified" : "Pending"}</span>
-          <button class="logout-btn" data-action="logout">Log out</button>
-          <button class="ghost reset-link" data-action="reset-demo" data-tooltip="Clear all demo data and return to start">Reset demo</button>
-        </div>
-      </aside>
+        <details class="profile-menu">
+          <summary>
+            <span class="profile-avatar">${escapeHTML((user.company || user.name || "BX").slice(0, 2).toUpperCase())}</span>
+            <span class="profile-summary">
+              <b>${escapeHTML(user.company || user.name || "New account")}</b>
+              <small>${escapeHTML(isCandidate() ? "Pitcher" : "Company")}</small>
+            </span>
+          </summary>
+          <div class="profile-dropdown">
+            <div class="profile-dropdown-head">
+              <span class="profile-avatar large">${escapeHTML((user.company || user.name || "BX").slice(0, 2).toUpperCase())}</span>
+              <div>
+                <strong>${escapeHTML(user.name || user.company || "New account")}</strong>
+                ${user.email ? `<span class="user-email">${escapeHTML(user.email)}</span>` : ""}
+                <span>${escapeHTML(user.company || "")}${user.company ? " · " : ""}${escapeHTML(isCandidate() ? "Pitcher" : "Company")}</span>
+              </div>
+            </div>
+            <span class="badge ${user.verified ? "good" : "warn"}">${user.verified ? "Verified" : "Pending"}</span>
+            <div class="profile-menu-stats">
+              <span><b>${ctx.state.applications.length}</b> pitches</span>
+              <span><b>${ctx.state.opportunities.length}</b> roles</span>
+              <span><b>${ctx.state.applications.filter((app) => app.interview).length}</b> interviews</span>
+            </div>
+            <button class="profile-menu-item">View profile</button>
+            <button class="profile-menu-item">Settings</button>
+            <button class="profile-menu-item danger-text" data-action="logout">Sign out / Log out</button>
+            <button class="profile-menu-item muted" data-action="reset-demo" data-tooltip="Clear all demo data and return to start">Reset demo</button>
+          </div>
+        </details>
+      </header>
       <section class="content">
         <div class="topbar">
           <div>

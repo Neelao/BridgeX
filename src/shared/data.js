@@ -123,7 +123,7 @@ export const seed = {
       id: "app_1",
       opportunityId: "opp_1",
       candidateId: "cand_1",
-      status: "analyzed",
+      status: "interview-complete",
       proposalText:
         "GreenGrid Analytics automates ESG reporting by reading utility bills, invoices, and supplier documents. We already support carbon accounting workflows, energy anomaly detection, and APAC multilingual reporting. Our architecture isolates tenant data, encrypts uploads, and supports enterprise audit logs.",
       whyApply:
@@ -131,15 +131,60 @@ export const seed = {
       resume: { name: "greengrid_pitch.pdf", kind: "Pitch deck" },
       documents: [{ name: "greengrid_pitch.pdf", kind: "Pitch deck" }],
       analysis: null,
-      interview: null,
+      interview: {
+        completedAt: "2026-06-19T10:30:00.000Z",
+        recording: "recording-app_1.webm",
+        recordingStatus: "demo-recording-ready",
+        answers: [
+          {
+            question: "Give us your 60-second pitch for this partnership.",
+            answer:
+              "GreenGrid brings an ESG reporting platform that reads utility bills, supplier files, and invoices, then turns them into carbon, energy, and audit-ready reports for enterprise clients."
+          },
+          {
+            question: "How will you keep enterprise data secure and scalable?",
+            answer:
+              "We isolate tenant data, encrypt uploads, keep audit logs, and deploy through a modular API workflow that can scale across APAC teams and multilingual reporting needs."
+          },
+          {
+            question: "What proof can you share from customers or pilots?",
+            answer:
+              "We have delivered pilots with operations teams, reduced manual reporting time, and can commit to a six-week milestone plan with weekly measurement checkpoints."
+          }
+        ],
+        summary: {
+          score: 94,
+          recommendation: "Strong fit",
+          pitchSummary:
+            "GreenGrid is a strong sustainability reporting partner with clear ESG automation, secure data handling, APAC readiness, and a practical pilot plan.",
+          strengths: [
+            "Strong ESG and carbon reporting alignment",
+            "Clear enterprise security and audit-log approach",
+            "Ready for a measurable six-week pilot"
+          ],
+          risks: ["Confirm exact customer references before final approval"],
+          keyPoints: [
+            { label: "Pitch clarity", value: "Explained ESG document automation and enterprise reporting clearly." },
+            { label: "Proof under pressure", value: "Shared pilot delivery and manual reporting time reduction signal." },
+            { label: "SSS alignment", value: "Covered secure uploads, scalable API workflow, and sustainability outcomes." }
+          ],
+          evidenceScore: 93,
+          nextQuestions: [
+            "Which enterprise client can validate the pilot results?",
+            "What data fields are needed in week one?",
+            "Who owns implementation from GreenGrid?"
+          ],
+          sss: { security: 92, scalability: 88, sustainability: 96 }
+        }
+      },
       meeting: null,
-      invitedToInterview: false
+      invitedToInterview: true
     },
     {
       id: "app_2",
       opportunityId: "opp_1",
       candidateId: "cand_2",
-      status: "analyzed",
+      status: "interview-invited",
       proposalText:
         "SecureLedger Labs provides compliance ledgers and document approval controls. We are strong in data security, audit logs, and regulated workflow management, but we do not have direct ESG reporting deployments yet.",
       whyApply:
@@ -149,7 +194,7 @@ export const seed = {
       analysis: null,
       interview: null,
       meeting: null,
-      invitedToInterview: false
+      invitedToInterview: true
     },
     {
       id: "app_3",

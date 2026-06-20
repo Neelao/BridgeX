@@ -1,6 +1,6 @@
 import { ctx, initCtx, analyze, setActiveUser, SESSION_USER_KEY } from "./app/ctx.js";
 import { render } from "./app/shell.js";
-import { saveState } from "./shared/state.js";
+import { ensureDemoState, saveState } from "./shared/state.js";
 import { hasSession } from "./shared/api.js";
 import "./app/events.js";
 
@@ -15,8 +15,8 @@ initCtx();
       if (res.ok) {
         const serverState = await res.json();
         if (serverState?.users) {
-          ctx.state = serverState;
-          localStorage.setItem("bridgex_state_v17", JSON.stringify(serverState));
+          ctx.state = ensureDemoState(serverState);
+          localStorage.setItem("bridgex_state_v17", JSON.stringify(ctx.state));
         }
       }
     } catch { /* fall back to localStorage */ }
