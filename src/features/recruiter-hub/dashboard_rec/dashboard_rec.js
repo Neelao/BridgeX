@@ -24,9 +24,16 @@ function reputationLabel(score) {
 }
 
 export function renderDashboard(state, user, filters = {}) {
-  const myOppIds = new Set(
+  let myOppIds = new Set(
     state.opportunities.filter((opp) => opp.ownerId === user.id).map((opp) => opp.id)
   );
+  const usingDemoPipeline = myOppIds.size === 0 && user.role === "recruiter";
+
+  if (usingDemoPipeline) {
+    myOppIds = new Set(
+      state.opportunities.filter((opp) => opp.ownerId === "u_recruiter").map((opp) => opp.id)
+    );
+  }
 
   const repScore = reputationScore(user, state);
   const { label: repLabel, cls: repCls } = reputationLabel(repScore);
@@ -62,9 +69,9 @@ export function renderDashboard(state, user, filters = {}) {
     <section class="dashboard-page">
       <div class="dashboard-hero">
         <div>
-          <span class="hero-pill">Verified company workspace</span>
+          <span class="hero-pill">${usingDemoPipeline ? "Demo company workspace" : "Verified company workspace"}</span>
           <h2>Candidate rankings for partnership opportunities</h2>
-          <p>AI-screened proposals, interview status, and connection readiness — ranked best to worst fit.</p>
+          <p>${usingDemoPipeline ? "Showing BridgeX demo applicants so you can present every recruiter feature immediately." : "AI-screened proposals, interview status, and connection readiness — ranked best to worst fit."}</p>
         </div>
         <div class="dashboard-verify-card">
           <b>✓ Verified</b>
@@ -195,6 +202,20 @@ export function renderDashboard(state, user, filters = {}) {
                                         }
 
                                         ${
+                                          app.analysis?.documentScan
+                                            ? html`
+                                                <div class="ai-card-scan">
+                                                  <div>
+                                                    <b>CV scan</b>
+                                                    <span>${app.analysis.documentScan.confidence}/100 evidence confidence</span>
+                                                  </div>
+                                                  <p>${escapeHTML(app.analysis.documentScan.evidenceLine)}</p>
+                                                </div>
+                                              `
+                                            : ""
+                                        }
+
+                                        ${
                                           app.analysis
                                             ? html`
                                                 <div class="ai-analysis">
@@ -232,7 +253,7 @@ export function renderDashboard(state, user, filters = {}) {
                                         }
 
                                         <div class="ai-actions">
-                                          <button class="mini-btn" data-action="view-candidate" data-app="${app.id}" data-tooltip="View full proposal, AI summary, and interview transcript">Full Details</button>
+                                          <button class="mini-btn" data-action="view-candidate" data-app="${app.id}" data-tooltip="View full proposal, uploaded CV, AI scan, and interview transcript">View Candidate</button>
                                           ${
                                             app.interview
                                               ? html`

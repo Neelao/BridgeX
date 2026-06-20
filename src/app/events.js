@@ -1,10 +1,176 @@
 import { ctx, currentUser, findApp, updateAccessDraft, askAiHelper, protectedRoute, analyze, setActiveUser, isCandidate } from "./ctx.js";
 import { render } from "./shell.js";
-import { showCandidate, startInterview, showConsentModal, startAvatarInterview, schedule, showApplyModal } from "./modals.js";
+import { showCandidate, startInterview, showConsentModal, startAvatarInterview, schedule, scheduleAiInterview, showApplyModal } from "./modals.js";
 import { html, escapeHTML, byId, formData } from "../shared/utils.js";
 import { saveState, resetState, uid } from "../shared/state.js";
 import { verifyAccess, reviewAuthorizationLetter, buildAiHelperReply } from "../features/portal-flow/verification/verification.js";
 import { apiLogout, apiUploadFile } from "../shared/api.js";
+
+const fileTextCache = new WeakMap();
+
+function beginVoiceCapture({ continuous = true } = {}) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const answer = byId("interview-answer");
+  if (!SpeechRecognition || !answer) {
+    alert("Speech recognition is not available in this browser, so type mode is ready.");
+    return false;
+  }
+
+  try { window.__bridgeXRecognition?.stop?.(); } catch {}
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = true;
+  recognition.continuous = continuous;
+  window.__bridgeXListening = true;
+  window.__bridgeXFinalTranscript = answer.value ? `${answer.value.trim()} ` : "";
+
+  recognition.onresult = (result) => {
+    let interim = "";
+    for (let i = result.resultIndex; i < result.results.length; i += 1) {
+      const transcript = result.results[i][0].transcript;
+      if (result.results[i].isFinal) window.__bridgeXFinalTranscript += `${transcript} `;
+      else interim += transcript;
+    }
+    const merged = `${window.__bridgeXFinalTranscript || ""}${interim}`.trim();
+    answer.value = merged;
+    const transcript = byId("spoken-transcript");
+    if (transcript) {
+      transcript.innerHTML = merged
+        ? `<b>Live transcript</b><span>${escapeHTML(merged)}</span>`
+        : `<b>Your spoken answer will appear here</b><span>Keep speaking naturally. BridgeX AI is listening.</span>`;
+    }
+    const live = byId("live-ai-scan");
+    if (live) {
+      live.textContent = merged.length > 40
+        ? "AI is taking in your answer now: detecting proof, skills, requirement matches, and risks."
+        : "AI is listening. Keep speaking naturally...";
+    }
+  };
+
+  recognition.onend = () => {
+    if (window.__bridgeXListening && continuous) {
+      try { recognition.start(); } catch {}
+    }
+  };
+
+  window.__bridgeXRecognition = recognition;
+  recognition.start();
+  return true;
+}
+
+function renderScanList(items = [], emptyText = "No evidence found yet.") {
+  return items.length
+    ? items.map((item) => `<span>${escapeHTML(item)}</span>`).join("")
+    : `<span class="empty-pill">${escapeHTML(emptyText)}</span>`;
+}
+
+function showAiDocumentScan(app, candidate, opportunity, documentName) {
+  const scanId = `scan-${app.id}`;
+  ctx.modal = html`
+    <div class="modal-backdrop">
+      <section class="modal ai-scan-modal" data-scan-id="${scanId}">
+        <div class="ai-scan-loading">
+          <div class="scan-document-visual">
+            <div class="scan-document-page">
+              <span></span><span></span><span></span><span></span>
+              <div class="scan-light"></div>
+            </div>
+          </div>
+          <div>
+            <span class="hero-pill">BridgeX AI document scan</span>
+            <h2>Scanning your pitch evidence...</h2>
+            <p>BridgeX is reading your proposal and attached document, comparing it with the company must-haves, then preparing interview follow-up questions.</p>
+            <div class="scan-stage-list">
+              <div><b>1</b><span>Extracting CV / proposal signals</span></div>
+              <div><b>2</b><span>Matching against company requirements</span></div>
+              <div><b>3</b><span>Finding evidence gaps for AI interview</span></div>
+              <div><b>4</b><span>Preparing detailed key-point report</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+  render();
+
+  setTimeout(() => {
+    const stillOpen = document.querySelector(`[data-scan-id="${scanId}"]`);
+    if (!stillOpen) return;
+    const scan = app.analysis?.documentScan;
+    const score = app.analysis?.score || 0;
+    const keywords = scan?.keywordGroups || [];
+    ctx.modal = html`
+      <div class="modal-backdrop" data-action="close-modal">
+        <section class="modal ai-scan-modal ai-scan-results">
+          <div class="scan-results-head">
+            <div>
+              <span class="hero-pill">AI scan complete</span>
+              <h2>${escapeHTML(candidate.company)} is ready for AI interview</h2>
+              <p>BridgeX scanned <b>${escapeHTML(documentName || "the submitted document")}</b> for <b>${escapeHTML(opportunity?.title || "this opportunity")}</b>.</p>
+            </div>
+            <div class="scan-score-card">
+              <b>${scan?.confidence ?? 0}</b>
+              <span>evidence confidence</span>
+              <small>${score}/100 fit score</small>
+            </div>
+          </div>
+
+          <div class="scan-results-grid">
+            <div class="scan-panel">
+              <h3>Matched company must-haves</h3>
+              <div class="scan-pill-list good">${renderScanList(scan?.matchedMust || [], "No must-have matches found yet.")}</div>
+            </div>
+            <div class="scan-panel">
+              <h3>Still needs proof</h3>
+              <div class="scan-pill-list warn">${renderScanList(scan?.missingMust || [], "No major must-have gaps detected.")}</div>
+            </div>
+          </div>
+
+          <div class="scan-panel">
+            <h3>Key points AI found</h3>
+            <div class="scan-evidence-grid">
+              ${(scan?.keyPoints || []).map((point) => html`
+                <div>
+                  <b>${escapeHTML(point.label)}</b>
+                  <p>${escapeHTML(point.value)}</p>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="scan-results-grid">
+            <div class="scan-panel">
+              <h3>Keyword signals</h3>
+              <div class="scan-keyword-groups">
+                ${keywords.length ? keywords.map((group) => html`
+                  <div>
+                    <b>${escapeHTML(group.label)}</b>
+                    <span>${escapeHTML(group.hits.join(", "))}</span>
+                  </div>
+                `).join("") : `<p class="hint">No keyword groups detected from the extractable document text.</p>`}
+              </div>
+            </div>
+            <div class="scan-panel">
+              <h3>AI interview will ask about</h3>
+              <ul class="scan-question-list">
+                ${(scan?.missingMust || []).slice(0, 3).map((gap) => `<li>Prove: ${escapeHTML(gap)}</li>`).join("")}
+                <li>What customer proof, pilots, or measurable outcomes support your pitch?</li>
+                <li>How will your company keep the partnership secure, scalable, and sustainable?</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="scan-results-actions">
+            <button class="primary" data-action="schedule-ai-interview" data-app="${app.id}">Schedule AI Interview</button>
+            <button class="ghost" data-action="go-dashboard">Review From Dashboard</button>
+          </div>
+        </section>
+      </div>
+    `;
+    render();
+  }, 1800);
+}
 
 // ── Click ──────────────────────────────────────────────────────────────────────
 
@@ -19,6 +185,13 @@ document.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "close-modal" && (event.target === target || target.tagName === "BUTTON")) {
+    window.__bridgeXListening = false;
+    try { window.__bridgeXRecognition?.stop?.(); } catch {}
+    try { window.speechSynthesis?.cancel?.(); } catch {}
+    try {
+      window.__bridgeXRecorder?.recorder?.stop?.();
+      window.__bridgeXActiveStream?.getTracks?.().forEach((track) => track.stop());
+    } catch {}
     ctx.modal = "";
     render();
   }
@@ -313,6 +486,7 @@ document.addEventListener("click", async (event) => {
   if (target.dataset.action === "apply-post") showApplyModal(target.dataset.opp);
   if (target.dataset.action === "view-candidate") showCandidate(target.dataset.app);
   if (target.dataset.action === "start-interview") showConsentModal(target.dataset.app);
+  if (target.dataset.action === "schedule-ai-interview") scheduleAiInterview(target.dataset.app);
   if (target.dataset.action === "schedule") schedule(target.dataset.app);
 
   if (target.dataset.action === "invite-interview") {
@@ -339,15 +513,10 @@ document.addEventListener("click", async (event) => {
   }
 
   if (target.dataset.action === "go-dashboard") { ctx.modal = ""; ctx.route = "dashboard"; render(); }
+  if (target.dataset.action === "go-feed") { ctx.modal = ""; ctx.route = "feed"; render(); }
 
   if (target.dataset.action === "voice-answer") {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const answer = byId("interview-answer");
-    if (!SpeechRecognition || !answer) { alert("Speech recognition is not available in this browser, so type mode is ready."); return; }
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.onresult = (result) => { answer.value = result.results[0][0].transcript; };
-    recognition.start();
+    beginVoiceCapture({ continuous: true });
   }
 
   if (target.dataset.action === "start-camera") {
@@ -355,9 +524,33 @@ document.addEventListener("click", async (event) => {
     if (!box) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      box.innerHTML = '<video autoplay muted playsinline></video>';
+      box.innerHTML = `
+        <video autoplay muted playsinline></video>
+        <div class="video-label left">You <span>camera + mic open</span></div>
+        <div class="camera-rec-badge">● Camera + mic live</div>
+      `;
+      box.classList.add("camera-live");
       box.querySelector("video").srcObject = stream;
-    } catch { box.textContent = "Camera permission blocked. Transcript recording continues."; }
+      window.__bridgeXActiveStream = stream;
+      if (window.MediaRecorder) {
+        const chunks = [];
+        const recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+        recorder.start(1000);
+        window.__bridgeXRecorder = { recorder, chunks };
+      }
+      const live = byId("live-ai-scan");
+      const startListeningAfterAi = () => {
+        if (window.__bridgeXAiSpeaking || window.speechSynthesis?.speaking) {
+          if (live) live.textContent = "Camera is live. BridgeX will start listening right after the AI interviewer finishes the question.";
+          setTimeout(startListeningAfterAi, 420);
+          return;
+        }
+        beginVoiceCapture({ continuous: true });
+        if (live) live.textContent = "Camera and microphone are live. Speak naturally: the AI is transcribing and scanning your answer.";
+      };
+      startListeningAfterAi();
+    } catch { box.textContent = "Camera permission blocked. Transcript recording continues in text/voice mode."; }
   }
 });
 
@@ -387,23 +580,35 @@ document.addEventListener("change", async (event) => {
     if (status) {
       status.textContent = input.name === "letter" ? "No file selected yet" : input.name === "supportDocument" ? "No supporting file selected" : "No file selected yet";
       status.classList.remove("has-file");
+      const picker = input.closest(".single-file-picker");
+      picker?.querySelector(".file-change-btn") && (picker.querySelector(".file-change-btn").textContent = "Choose file");
     }
     return;
   }
 
   const sizeKb = Math.max(1, Math.round(file.size / 1024));
-  if (status) { status.textContent = `Uploading ${file.name}…`; status.classList.add("has-file"); }
+  if (status) {
+    status.textContent = `Selected: ${file.name} · ${sizeKb} KB`;
+    status.classList.add("has-file");
+    const picker = input.closest(".single-file-picker");
+    picker?.querySelector(".file-change-btn") && (picker.querySelector(".file-change-btn").textContent = "Change file");
+  }
+  if (/text|json|csv|markdown|plain/i.test(file.type) || /\.(txt|md|csv)$/i.test(file.name)) {
+    file.text().then((text) => fileTextCache.set(file, text.slice(0, 8000))).catch(() => {});
+  } else {
+    fileTextCache.set(file, `${file.name} ${file.type || ""}`);
+  }
   try {
     const result = await apiUploadFile(file);
-    if (status) status.textContent = `Uploaded: ${result.name} · ${Math.round(result.size / 1024)} KB`;
+    if (status) status.textContent = `Selected: ${result.name} · ${Math.round(result.size / 1024)} KB`;
   } catch {
-    if (status) status.textContent = `Ready: ${file.name} · ${sizeKb} KB`;
+    if (status) status.textContent = `Selected: ${file.name} · ${sizeKb} KB`;
   }
 });
 
 // ── Submit ─────────────────────────────────────────────────────────────────────
 
-document.addEventListener("submit", (event) => {
+document.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
 
@@ -453,50 +658,30 @@ document.addEventListener("submit", (event) => {
     const opp = ctx.state.opportunities.find((o) => o.id === oppId);
     const resumeFile = data.resume;
     const hasResume = resumeFile && typeof resumeFile === "object" && resumeFile.name && resumeFile.size > 0;
+    const documentText = hasResume ? (fileTextCache.get(resumeFile) || `${resumeFile.name} ${resumeFile.type || ""}`) : "";
     const candidate = { id: uid("cand"), userId: ctx.activeUserId, name: data.name, company: data.company, email: data.email, role: data.role, bio: (data.whyApply || "").slice(0, 150) };
-    const app = { id: uid("app"), opportunityId: oppId, candidateId: candidate.id, status: "submitted", proposalText: data.whyApply, whyApply: data.whyApply, resume: hasResume ? { name: resumeFile.name, kind: "Resume/CV" } : null, documents: hasResume ? [{ name: resumeFile.name, kind: "Resume/CV" }] : [], analysis: null, interview: null, meeting: null, invitedToInterview: false };
+    const app = { id: uid("app"), opportunityId: oppId, candidateId: candidate.id, status: "interview-invited", proposalText: data.whyApply, whyApply: data.whyApply, documentText, resume: hasResume ? { name: resumeFile.name, kind: "Resume/CV", extractedText: documentText } : null, documents: hasResume ? [{ name: resumeFile.name, kind: "Resume/CV", extractedText: documentText }] : [], analysis: null, interview: null, meeting: null, aiInterviewSlot: null, invitedToInterview: true };
     ctx.state.candidates.push(candidate);
     analyze(app);
     ctx.state.applications.push(app);
     saveState(ctx.state);
-    ctx.modal = html`
-      <div class="modal-backdrop" data-action="close-modal">
-        <section class="modal" style="max-width:460px;text-align:center">
-          <div class="approved-state" style="min-height:180px">
-            <b>✓</b>
-            <h2>Application Submitted!</h2>
-            <p>Your pitch for <b>${escapeHTML(opp?.title || "this posting")}</b> has been received. If the recruiter likes your proposal, you'll receive an interview invitation in your dashboard.</p>
-          </div>
-          <button class="primary" style="width:100%;margin-top:12px" data-action="close-modal">Back to Feed</button>
-        </section>
-      </div>
-    `;
-    render();
+    showAiDocumentScan(app, candidate, opp, resumeFile?.name || "submitted pitch text");
     return;
   }
 
   if (form.id === "application-form") {
     const data = formData(form);
     const opp = ctx.state.opportunities.find((o) => o.id === data.opportunityId);
+    const uploaded = data.document;
+    const hasDocument = uploaded && typeof uploaded === "object" && uploaded.name && uploaded.size > 0;
+    const documentText = hasDocument ? (fileTextCache.get(uploaded) || `${uploaded.name} ${uploaded.type || ""}`) : "";
     const candidate = { id: uid("cand"), userId: ctx.activeUserId, name: data.name, company: data.company, email: data.email, role: data.role, bio: (data.proposalText || "").slice(0, 150) };
-    const app = { id: uid("app"), opportunityId: data.opportunityId, candidateId: candidate.id, status: "submitted", proposalText: data.proposalText, whyApply: data.proposalText, documents: data.document?.name ? [{ name: data.document.name, kind: "Uploaded file" }] : [], analysis: null, interview: null, meeting: null, invitedToInterview: false };
+    const app = { id: uid("app"), opportunityId: data.opportunityId, candidateId: candidate.id, status: "interview-invited", proposalText: data.proposalText, whyApply: data.proposalText, documentText, documents: hasDocument ? [{ name: uploaded.name, kind: "Uploaded file", extractedText: documentText }] : [], analysis: null, interview: null, meeting: null, aiInterviewSlot: null, invitedToInterview: true };
     ctx.state.candidates.push(candidate);
     analyze(app);
     ctx.state.applications.push(app);
     saveState(ctx.state);
-    ctx.modal = html`
-      <div class="modal-backdrop" data-action="close-modal">
-        <section class="modal" style="max-width:460px;text-align:center">
-          <div class="approved-state" style="min-height:180px">
-            <b>✓</b>
-            <h2>Pitch Submitted!</h2>
-            <p>Your application for <b>${escapeHTML(opp?.title || "this posting")}</b> is in. Head to your dashboard to track its status.</p>
-          </div>
-          <button class="primary" style="width:100%;margin-top:12px" data-action="go-dashboard">View My Dashboard</button>
-        </section>
-      </div>
-    `;
-    render();
+    showAiDocumentScan(app, candidate, opp, uploaded?.name || "submitted pitch text");
     return;
   }
 
@@ -543,6 +728,10 @@ document.addEventListener("submit", (event) => {
   if (form.id === "interview-form") {
     const answer = byId("interview-answer").value.trim();
     if (answer) window.__bridgeXInterviewNext(answer);
+    else {
+      const live = byId("live-ai-scan");
+      if (live) live.textContent = "No spoken answer captured yet. Please open microphone access and answer out loud before continuing.";
+    }
   }
 
   if (form.id === "meeting-form") {
@@ -555,6 +744,23 @@ document.addEventListener("submit", (event) => {
     ctx.modal = "";
     saveState(ctx.state);
     render();
+  }
+
+  if (form.id === "ai-interview-slot-form") {
+    const data = formData(form);
+    const { app } = findApp(form.dataset.app);
+    app.aiInterviewSlot = {
+      date: data.date,
+      time: data.time,
+      mode: data.mode,
+      note: data.note || "",
+      status: "confirmed"
+    };
+    app.status = "interview-scheduled";
+    app.invitedToInterview = true;
+    saveState(ctx.state);
+    showConsentModal(app.id);
+    return;
   }
 
   if (form.id === "company-verification-form") {

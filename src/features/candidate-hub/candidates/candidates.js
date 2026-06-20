@@ -51,14 +51,27 @@ export function renderCandidateApply(state, user) {
           <label data-tooltip="PDF, DOC, DOCX, TXT, PPTX up to 10 MB. Drag &amp; drop supported.">
             CV / proposal / pitch deck
           </label>
-          <label class="upload-zone" data-dropzone="document" data-tooltip="Drag your pitch deck or CV here, or click to browse">
+          <label class="single-file-picker" data-dropzone="document" data-tooltip="Drag your pitch deck or CV here, or click to browse">
             <input name="document" type="file" accept=".pdf,.doc,.docx,.txt,.pptx" />
-            <b>⇧</b>
-            <strong>Upload document</strong>
-            <span>PDF, DOC, PPTX, TXT • max 10 MB</span>
-            <span class="drop-hint">or drag &amp; drop from your file explorer</span>
-            <em data-upload-status="document">No file selected yet</em>
+            <span class="file-icon">PDF</span>
+            <span class="file-info">
+              <b data-upload-status="document">No file selected yet</b>
+              <small>Attach one document. If it is the wrong file, press Change file.</small>
+            </span>
+            <span class="file-change-btn">Choose file</span>
           </label>
+        </div>
+
+        <div class="ai-scan-preview">
+          <div>
+            <b>AI document scan</b>
+            <span>After upload, BridgeX extracts role signals, keyword hits, missing requirements, and interview follow-up topics from the CV/proposal.</span>
+          </div>
+          <ul>
+            <li>Scans uploaded resume/CV or proposal text when available.</li>
+            <li>Matches document evidence against company must-haves.</li>
+            <li>Builds interview questions from missing proof.</li>
+          </ul>
         </div>
 
         <div class="field">
